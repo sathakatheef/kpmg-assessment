@@ -1,0 +1,87 @@
+plan-dev-infra:
+  extends:
+    - .plan-infra
+    - .dev-infra
+
+apply-dev-infra:
+  dependencies:
+    - plan-dev-infra
+  extends:
+    - .deploy-infra
+    - .dev-infra
+
+destroy-plan-dev-infra:
+  extends:
+    - .destroy-plan-infra
+    - .dev-infra
+
+destroy-dev-infra:
+  extends:
+    - .destroy-infra
+    - .dev-infra
+
+plan-stag-infra:
+  extends:
+    - .plan-infra
+    - .stag-infra
+
+apply-stag-infra:
+  dependencies:
+    - plan-stag-infra
+  extends:
+    - .deploy-infra
+    - .stag-infra
+
+destroy-plan-stag-infra:
+  extends:
+    - .destroy-plan-infra
+    - .stag-infra
+
+destroy-stag-infra:
+  extends:
+    - .destroy-infra
+    - .stag-infra
+
+plan-sand-infra:
+  extends:
+    - .plan-infra
+    - .sand-infra
+
+apply-sand-infra:
+  dependencies:
+    - plan-sand-infra
+  extends:
+    - .deploy-infra
+    - .sand-infra
+
+destroy-plan-sand-infra:
+  extends:
+    - .destroy-plan-infra
+    - .sand-infra
+
+destroy-sand-infra:
+  extends:
+    - .destroy-infra
+    - .sand-infra
+
+plan-prod-infra:
+  extends:
+    - .plan-infra
+    - .prod-infra
+
+apply-prod-infra:
+  dependencies:
+    - plan-prod-infra
+  extends:
+    - .deploy-infra
+    - .prod-infra
+
+destroy-plan-prod-infra:
+  extends:
+    - .destroy-plan-infra
+    - .prod-infra
+
+destroy-prod-infra:
+  extends:
+    - .destroy-infra
+    - .prod-infra

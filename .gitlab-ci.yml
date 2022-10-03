@@ -1,0 +1,15 @@
+stages:
+  - deploy-dev-infra
+  - deploy-stag-infra
+  - deploy-sand-infra
+  - deploy-prod-infra
+
+variables:
+  DEPLOY_IMAGE_NAME: deploy-image ## The runner image assumed to have terraform installed and built separately and the runner is assumed to be running as kubernetes pods in EKS.
+  DEPLOY_IMAGE_VERSION: R1
+  TEAM: sample-team
+  APP_NAME: sample-app
+
+include:
+  - local: '/2_automation/gl-pipeline.yml'
+  - local: '/2_automation/gl-base-pipeline.yml'

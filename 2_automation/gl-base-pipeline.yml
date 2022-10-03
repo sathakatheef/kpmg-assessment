@@ -1,0 +1,170 @@
+variables:
+  DOCKER_REPOSITORY: index.docker.io/library/
+  TAG: $CI_COMMIT_SHORT_SHA
+  AWS_ROLE: ci-role-apps   ## IAM role for the gitlab runner to assume
+  TERRAFORM_DIR: $CI_PROJECT_DIR/1_infrastructure/terraform
+  TERRAFORM_WORKSPACE: $ENVIRONMENT
+  TF_KEY_NAME: $CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME/tfinfra
+  TF_REGION: 'ap-southeast-2'
+  TF_TABLE_NAME: terraform-lock-$AWS_ACCOUNT_ID
+  TF_BUCKET_NAME: terraform-state-$AWS_ACCOUNT_ID
+  TF_BACKEND_CONFIG: '-backend-config="bucket=$(TF_BUCKET_NAME)" \
+        -backend-config="key=$(TF_KEY_NAME)" \
+        -backend-config="region=$(TF_REGION)" \
+        -backend-config="dynamodb_table=$(TF_TABLE_NAME)"'
+  TF_VAR_app_name: $APP_NAME
+  TF_VAR_region: 'ap-southeast-2'
+  TF_VAR_tg_health_check: "/healthcheck/ping"
+  TF_VAR_health_check_port: "9102"
+  TF_VAR_dns_suffix: "au.co"
+  TF_VAR_priavte_registry_name: provate-docker-repo
+  TF_VAR_private_regisrty_username: $DOCKER_REPOSITORY_USER
+  TF_VAR_private_registry_passwd: $DOCKER_REPOSITORY_PASS
+  TF_VAR_ecs_cluster_name: "ecs_fargate_windows"
+  TF_VAR_ecs_cluster_arn: arn:aws:ecs:ap-southeast-2:$AWS_ACCOUNT_ID:cluster/ecs_fargate_windows
+  TF_VAR_task_cpu: 1024
+  TF_VAR_task_memory: 2048
+  TF_VAR_container_cpu: 512
+  TF_VAR_container_memory_limit: 1024
+  TF_VAR_container_memory_request: 512
+  TF_VAR_enable_execute_command: "true"
+  TF_VAR_cpu_low_threshold: "60"
+  TF_VAR_cpu_high_threshold: "80"
+  TF_VAR_container_image: "$DOCKER_REPOSITORY/$APP_NAME:$TAG"
+  TF_VAR_container_name: $APP_NAME
+  TF_VAR_r53_dns_name: $APP_NAME$ENVIRONMENT.au.co
+  TF_VAR_managed_policy_arn: '["arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy", "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"]'
+  TF_VAR_elb_logs_s3_bucket_prefix: "loadbalancer/hybrid-internal"
+
+.plan-infra:
+  image: index.docker.io/library/$DEPLOY_IMAGE_NAME:$DEPLOY_IMAGE_VERSION
+  when: manual
+  script:
+    - |
+      cd $TERRAFORM_DIR
+      OUTPUT=$(aws sts assume-role --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/$AWS_ROLE" --role-session-name "terraform-import" --duration-seconds 3600 --output json)
+      CREDS=$(echo $OUTPUT | jq .Credentials)
+      export AWS_ACCESS_KEY_ID=`echo $CREDS | jq -r .AccessKeyId` && export AWS_SECRET_ACCESS_KEY=`echo $CREDS | jq -r .SecretAccessKey` && export AWS_SESSION_TOKEN=`echo $CREDS | jq -r .SessionToken`
+      terraform init $TF_BACKEND_CONFIG
+      terraform workspace new $TERRAFORM_WORKSPACE || true
+	    terraform workspace select $TERRAFORM_WORKSPACE
+	    terraform workspace show
+      terraform plan -var CI_PROJECT_URL=$CI_PROJECT_URL -var ENVIRONMENT=$ENVIRONMENT -var TEAM=$TEAM
+  tags: [ apps-apse2 ]  ## Tag to fetch the runner to run this CI job on
+
+.apply-infra:
+  image: index.docker.io/library/$DEPLOY_IMAGE_NAME:$DEPLOY_IMAGE_VERSION
+  when: manual
+  script:
+    - |
+      cd $TERRAFORM_DIR
+      OUTPUT=$(aws sts assume-role --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/$AWS_ROLE" --role-session-name "terraform-import" --duration-seconds 3600 --output json)
+      CREDS=$(echo $OUTPUT | jq .Credentials)
+      export AWS_ACCESS_KEY_ID=`echo $CREDS | jq -r .AccessKeyId` && export AWS_SECRET_ACCESS_KEY=`echo $CREDS | jq -r .SecretAccessKey` && export AWS_SESSION_TOKEN=`echo $CREDS | jq -r .SessionToken`
+      terraform init $TF_BACKEND_CONFIG
+      terraform workspace new $TERRAFORM_WORKSPACE || true
+	    terraform workspace select $TERRAFORM_WORKSPACE
+	    terraform workspace show
+      terraform apply --auto-approve -var CI_PROJECT_URL=$CI_PROJECT_URL -var ENVIRONMENT=$ENVIRONMENT -var TEAM=$TEAM
+  tags: [ apps-apse2 ]
+
+.destroy-plan-infra:
+  image: index.docker.io/library/$DEPLOY_IMAGE_NAME:$DEPLOY_IMAGE_VERSION
+  when: manual
+  script:
+    - |
+      cd $TERRAFORM_DIR
+      OUTPUT=$(aws sts assume-role --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/$AWS_ROLE" --role-session-name "terraform-import" --duration-seconds 3600 --output json)
+      CREDS=$(echo $OUTPUT | jq .Credentials)
+      export AWS_ACCESS_KEY_ID=`echo $CREDS | jq -r .AccessKeyId` && export AWS_SECRET_ACCESS_KEY=`echo $CREDS | jq -r .SecretAccessKey` && export AWS_SESSION_TOKEN=`echo $CREDS | jq -r .SessionToken`
+      terraform init $TF_BACKEND_CONFIG
+      terraform workspace new $TERRAFORM_WORKSPACE || true
+	    terraform workspace select $TERRAFORM_WORKSPACE
+	    terraform workspace show
+      terraform plan -destroy -var CI_PROJECT_URL=$CI_PROJECT_URL -var ENVIRONMENT=$ENVIRONMENT -var TEAM=$TEAM
+  tags: [ apps-apse2 ]
+
+.destroy-infra:
+  image: index.docker.io/library/$DEPLOY_IMAGE_NAME:$DEPLOY_IMAGE_VERSION
+  when: manual
+  script:
+    - |
+      cd $TERRAFORM_DIR
+      OUTPUT=$(aws sts assume-role --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/$AWS_ROLE" --role-session-name "terraform-import" --duration-seconds 3600 --output json)
+      CREDS=$(echo $OUTPUT | jq .Credentials)
+      export AWS_ACCESS_KEY_ID=`echo $CREDS | jq -r .AccessKeyId` && export AWS_SECRET_ACCESS_KEY=`echo $CREDS | jq -r .SecretAccessKey` && export AWS_SESSION_TOKEN=`echo $CREDS | jq -r .SessionToken`
+      terraform init $TF_BACKEND_CONFIG
+      terraform workspace new $TERRAFORM_WORKSPACE || true
+	    terraform workspace select $TERRAFORM_WORKSPACE
+	    terraform workspace show
+      terraform destroy --auto-approve -var CI_PROJECT_URL=$CI_PROJECT_URL -var ENVIRONMENT=$ENVIRONMENT -var TEAM=$TEAM
+  tags: [ apps-apse2 ]
+
+.dev-infra:
+  stage: deploy-dev-infra
+  except:
+    - main
+  variables:
+    ENVIRONMENT: dev
+    AWS_ACCOUNT_ID: 01234567890
+    TF_VAR_task_role_arn: ""
+    TF_VAR_task_desired_count: 1
+    TF_VAR_need_service_auto_scaling: "true"
+    TF_VAR_scale_target_min_capacity: 1
+    TF_VAR_scale_target_max_capacity: 3
+    TF_VAR_elb_logs_s3_bucket: logging-dev-apse2
+    TF_VAR_wait_for_ecs_service_steady_state: "false"
+    TF_VAR_create_record: "true"
+
+.stag-infra:
+  stage: deploy-stag-infra
+  except:
+    - main
+  variables:
+    ENVIRONMENT: stag
+    AWS_ACCOUNT_ID: 01234567890
+    TF_VAR_task_role_arn: ""
+    TF_VAR_task_desired_count: 2
+    TF_VAR_need_service_auto_scaling: "true"
+    TF_VAR_scale_target_min_capacity: 2
+    TF_VAR_scale_target_max_capacity: 4
+    TF_VAR_elb_logs_s3_bucket: logging-staging-apse2
+    TF_VAR_wait_for_ecs_service_steady_state: "false"
+    TF_VAR_create_record: "true"
+
+.sand-infra:
+  stage: deploy-sand-infra
+  only:  ## Restricting sandbox env deployment only for pull request
+    refs:
+      - merge_requests
+    variables:
+      - $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
+      - $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^hotfix/
+  variables:
+    ENVIRONMENT: sand
+    AWS_ACCOUNT_ID: 01234567890
+    TF_VAR_task_role_arn: ""
+    TF_VAR_task_desired_count: 2
+    TF_VAR_need_service_auto_scaling: "true"
+    TF_VAR_scale_target_min_capacity: 2
+    TF_VAR_scale_target_max_capacity: 4
+    TF_VAR_elb_logs_s3_bucket: logging-sandbox-apse2
+    TF_VAR_wait_for_ecs_service_steady_state: "false"
+    TF_VAR_create_record: "true"
+
+.prod-infra:
+  stage: deploy-prod-app
+  only: ## Restricting prod env deployment only after merging pull request
+    - main
+    - /^hotfix/
+  variables:
+    ENVIRONMENT: prod
+    AWS_ACCOUNT_ID: 01234567890
+    TF_VAR_task_role_arn: ""
+    TF_VAR_task_desired_count: 3
+    TF_VAR_need_service_auto_scaling: "true"
+    TF_VAR_scale_target_min_capacity: 3
+    TF_VAR_scale_target_max_capacity: 5
+    TF_VAR_elb_logs_s3_bucket: logging-prod-apse2
+    TF_VAR_wait_for_ecs_service_steady_state: "false"
+    TF_VAR_create_record: "true"
