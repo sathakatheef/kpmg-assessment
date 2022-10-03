@@ -1,0 +1,13 @@
+# Ignore terraform artifacts
+**/terraform/**/.terraform
+**/terraform/**/backend.tf
+**/terraform/**/*.tfvars
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+
+.DS_Store
+._.DS_Store
+**/.DS_Store
+**/._.DS_Store
+**/__pycache__
